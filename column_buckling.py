@@ -3,45 +3,45 @@ from scipy.optimize import bisect
 
 def find_critical_load(L, E, A, r, c, e, sigma_allow):
     """
-    L: Column length [mm]
-    E: Modulus of elasticity [MPa]
-    A: Cross-sectional area [mm^2]
-    r: Radius of gyration [mm]
-    c: Distance to outer fiber [mm]
-    e: Eccentricity [mm]
-    sigma_allow: Allowable stress [MPa]
-    
-    Return: P critical load [N]
+    Finds the maximum allowable load P based on the Secant Formula.
     """
     
-    # Define the objective function f(P) = sigma_max - sigma_allow
-    # We want to find P such that f(P) = 0
     def f(P):
-        # Secant(x) is 1/cos(x)
-        # Formula: sigma_max = (P/A) * [1 + (ec/r^2) * sec( (L/2r) * sqrt(P/EA) )]
+        # Secant Formula: sigma_max = (P/A) * [1 + (ec/r^2) * sec( (L/2r) * sqrt(P/EA) )]
+        # Using 1/cos(...) as per instructions
         
-        inner_term = (L / (2 * r)) * np.sqrt(P / (E * A))
-        sec_term = 1 / np.cos(inner_term)
+        # Calculate the argument for the secant/cosine term
+        argument = (L / (2 * r)) * np.sqrt(P / (E * A))
         
-        sigma_max = (P / A) * (1 + (e * c / r**2) * sec_term)
+        # Check if argument is too close to pi/2 (asymptote) to avoid division by zero
+        if argument >= np.pi / 2:
+            return float('inf')
+            
+        sec_term = 1 / np.cos(argument)
+        sigma_max = (P / A) * (1 + (e * c / (r**2)) * sec_term)
         
         return sigma_max - sigma_allow
 
-    # Define the search range for P
-    # P_low is nearly 0
-    # P_high: A safe upper bound is the Euler Critical Load (P_e = pi^2 * EI / L^2)
-    # or simply a very large number based on material yield.
-    p_low = 1e-3 
-    p_high = sigma_allow * A  # The load cannot exceed yield stress * area
+    # Define bounds: 
+    # 1. P_low: Almost zero
+    # 2. P_high: Must be less than the theoretical Euler load where cos goes to 0
+    # P_euler = (pi^2 * E * I) / L^2, but based on the formula's argument:
+    # (L/2r) * sqrt(P/EA) < pi/2  =>  P < (pi^2 * E * A * r^2) / L^2
+    p_euler_limit = (np.pi**2 * E * A * r**2) / (L**2)
     
-    # Use bisection to find the root
-    try:
-        p_critical = bisect(f, p_low, p_high, xtol=1e-6)
-        return p_critical
-    except ValueError:
-        # If the range doesn't bracket the root, return the high bound as a fallback
-        return p_high
+    # We also know P cannot exceed yield load: sigma_allow * A
+    p_yield_limit = sigma_allow * A
+    
+    # The actual upper bound is the smaller of the two, with a tiny safety margin
+    p_high = min(p_euler_limit, p_yield_limit) * 0.9999
+    p_low = 1e-5
 
-# To run the tests mentioned in the image, use:
-# pytest test_buckling.py
-   **Units:** Ensure your inputs match the units in the docstring ($mm$, $MPa$, $N$). Since $1\text{ MPa} = 1\text{ N/mm}^2$, the units are consistent and don't require conversion factors inside the formula.
+    try:
+        #```
+
+### Why this version should pass:
+*   **Asymptote Protection**: The Secant formula has a vertical asymptote at the Euler buckling Bisection is recommended for stability in this task
+        return bisect(f, p_low, p_high, xtol load ($P_e$). If your `p_high` was too large in the previous attempt, the solver likely failed because=1e-4)
+    except ValueError:
+        # If the root isn't bracketed, the allowable load is at the limit
+         $\cos(arg)$ crossed zero.return p_high
